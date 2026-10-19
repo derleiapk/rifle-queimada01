@@ -6,7 +6,7 @@
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}*,*::before,*::after{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
-<title>Rifle Queimada</title>
+<title>Rifle Queimada Online</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
@@ -528,20 +528,20 @@ function ai(c,dt){
   const dx=a.tx-c.x,dz=a.tz-c.z,d=Math.hypot(dx,dz),sl=c.wind>0?.35:c.brace?.4:1;
   if(d>.2){c.mx=dx/d*sl*Math.min(1,d*1.5);c.mz=dz/d*sl*Math.min(1,d*1.5)}else c.mx=c.mz=0;
 }
-function control(c,dt){
-  const d=inputDir();c.mx=d.x;c.mz=d.z;
-  if(inp.dodge){inp.dodge=false;dash(c,d)}
-  if(inp.jump){inp.jump=false;jump(c)}
-  const wasB=c.brace;c.brace=inp.braceDown&&!c.hold&&c.stun<=0;if(c.brace&&!wasB)c.braceT=0;if(c.brace)c.braceT+=dt;
-  if(c.hold){c.holdT+=dt;if(inp.throwDown)c.charge=Math.min(1.5,c.charge+dt);
+function control(c,dt,I){
+  I=I||inp;const d=I===inp?inputDir():{x:I.x,z:I.z};c.mx=d.x;c.mz=d.z;
+  if(I.dodge){I.dodge=false;dash(c,d)}
+  if(I.jump){I.jump=false;jump(c)}
+  const wasB=c.brace;c.brace=I.braceDown&&!c.hold&&c.stun<=0;if(c.brace&&!wasB)c.braceT=0;if(c.brace)c.braceT+=dt;
+  if(c.hold){c.holdT+=dt;if(I.throwDown)c.charge=Math.min(1.5,c.charge+dt);
     if(c.counterT>0)c.counterT-=dt;
-    if(inp.throwRel){inp.throwRel=false;let p=c.charge<.4?1:c.charge<.95?2:c.charge<1.45?3:4;const tg=pickAim(c,d);if(c.counterT>0&&p<3&&!c.serveReady){p=3;c.counterT=0;ono('CONTRA!',c.x,3,c.z,'#ffd84a',1.2);S.esc=.5;S.escFocus={x:c.x,z:c.z};sfx('esc')}
+    if(I.throwRel){I.throwRel=false;let p=c.charge<.4?1:c.charge<.95?2:c.charge<1.45?3:4;const tg=pickAim(c,d);if(c.counterT>0&&p<3&&!c.serveReady){p=3;c.counterT=0;ono('CONTRA!',c.x,3,c.z,'#ffd84a',1.2);S.esc=.5;S.escFocus={x:c.x,z:c.z};sfx('esc')}
       if(c.serveReady&&tg&&tg.type==='char')serveCut(c,tg.c,p>=3?4:3);
       else if(p===2&&tg&&tg.type==='char')doThrow(c,tg,2,{curve:(tg.c.x>c.x?-1:1)*rnd(8,11),home:idx(tg.c),turn:1.4,low:d.z<-.55});
       else if(p===4&&tg&&tg.type==='char'){c.charge=0;S.lastCut=S.time;S.cut={who:c.id,move:'TIRO DE FOGO',sub:c.name,t:0,dur:.85,after:()=>{if(c.hold)doThrow(c,pickAim(c,d)||tg,4,{err:.1})}};sfx('cut')}
       else doThrow(c,tg,p,{low:d.z<-.55&&p<4})}}
-  else{inp.throwRel=false;c.charge=0}
-  if(inp.special){inp.special=false;special(c,d)}
+  else{I.throwRel=false;c.charge=0}
+  if(I.special){I.special=false;special(c,d)}
 }
 function special(c,d){
   if(S.cut||S.clash||c.serveT>0)return;
@@ -652,9 +652,9 @@ function stepTrap(dt){
 /* ---------- power clash ---------- */
 function startClash(c,b,perfect,start){
   const l=Math.hypot(b.vx,b.vz)||1;
-  S.clash={ci:idx(c),t:0,prog:start!=null?start:(perfect?.62:.45),dx:b.vx/l,dz:b.vz/l,power:b.power,owner:b.owner,team:b.team,slide:4.2,max:2.4,sx:c.x,sz:c.z,player:idx(c)===S.ctrl,wall:c.wall>0};
+  S.clash={ci:idx(c),t:0,prog:start!=null?start:(perfect?.62:.45),dx:b.vx/l,dz:b.vz/l,power:b.power,owner:b.owner,team:b.team,slide:4.2,max:2.4,sx:c.x,sz:c.z,player:isHuman(idx(c)),wall:c.wall>0};
   b.state='clash';b.trail=[];b.spin=false;b.home=-1;c.brace=true;
-  sfx('big');S.hitstop=.08;cam.shake=12;inp.taps=0;
+  sfx('big');S.hitstop=.08;cam.shake=12;inp.taps=0;RI.taps=0;
   ono(pick(['DOOOM!','GRRR!','KRRR!']),c.x,2.4,c.z,'#9fe0ff',1.3);
   if(c.spy)shout(c,pick(['Hnnngh!','Segura!','Aaah!']));else shout(c,'Ngh!',false);
   if(S.clash.player&&!S.flags.clashTip){S.flags.clashTip=1;think(c,'Ela está me empurrando... aperta, aperta!',true)}
@@ -663,7 +663,7 @@ function stepClash(dt){
   const K=S.clash,c=S.chars[K.ci],b=S.ball;if(!c||!c.alive){S.clash=null;return}
   K.t+=dt;
   const force=(K.power>=4?.62:.46)*(K.wall?.55:1);
-  if(K.player){K.prog+=inp.taps*(K.wall?.12:.085)-force*dt;inp.taps=0}
+  if(K.player){const I=(NET.role==='host'&&K.ci===NET.gi&&NET.guestOn)?RI:inp;K.prog+=I.taps*(K.wall?.12:.085)-force*dt;I.taps=0}
   else K.prog+=(Math.random()<c.catchSkill+.1?1:-1)*dt*.55;
   // slide back
   K.slide=Math.max(.6,K.slide-dt*2.2);
@@ -709,14 +709,14 @@ function contact(c,b,isT){
     ono('QUASE!',c.x,2.5,c.z,'#ff5a70',1);c.dashT=0;if(ci===S.ctrl&&Math.random()<.5)think(c,pick(['Não deu tempo...','Ela me seguiu!']))}
   const p=b.power||1;
   if((c.brace||c.wall>0)&&!isT&&!c.hold&&p>=3&&!S.clash){startClash(c,b,c.braceT<.34||c.wall>0);return true}
-  if(!isT&&!c.hold&&p>=3&&!S.clash&&c.stun<=0){if(ci===S.ctrl){startClash(c,b,false,.3);return true}if(Math.random()<c.catchSkill+.1){startClash(c,b,false);return true}}
+  if(!isT&&!c.hold&&p>=3&&!S.clash&&c.stun<=0){if(isHuman(ci)){startClash(c,b,false,.3);return true}if(Math.random()<c.catchSkill+.1){startClash(c,b,false);return true}}
   if((c.brace||c.wall>0)&&!isT&&!c.hold){
     const perfect=c.braceT<.34||c.wall>0,ch=clamp(c.catchSkill+(c.glove?.12:0)+(perfect?.3:0)+(c.wall>0?.25:0)-(p-1)*.15,.05,.97);
     if(Math.random()<ch){
       Object.assign(b,{state:'held',owner:ci,team:null,harmless:false,trail:[]});c.hold=true;c.holdT=0;c.brace=false;c.charge=0;c.wind=0;
       sfx('catch');ono(perfect?'SNAP!':'PEGOU!',c.x,2.1,c.z,'#ffe066',1);S.hitstop=.06;cam.shake=5;
       for(let k=0;k<12;k++)emit('spark',c.x,1.3,c.z,rnd(-3,3),rnd(0,3),rnd(-3,3),.5,rnd(.15,.3));
-      if(c.spy){S.energy+=20;if(perfect&&ci===S.ctrl){c.counterT=.9;think(c,'Contra-ataque! Arremessa agora!',true)}shout(c,perfect?'Peguei!':'Hah!');if(!S.flags.catch){S.flags.catch=1;think(c,'Senti o calor da bola na palma. Mais um segundo e queimava.')}}
+      if(c.spy){S.energy+=20;if(perfect&&isHuman(ci)){c.counterT=.9;think(c,'Contra-ataque! Arremessa agora!',true)}shout(c,perfect?'Peguei!':'Hah!');if(!S.flags.catch){S.flags.catch=1;think(c,'Senti o calor da bola na palma. Mais um segundo e queimava.')}}
       else{shout(c,pick(['Peguei!','Fácil.','Hmph.']),false);if(!S.flags.ecatch){S.flags.ecatch=1;think(me(),c.glove?'A luva reforçada segurou o impacto. Preciso de mais carga.':'Ele pegou! Mira onde ele não alcança.')}}
       return true;
     }
@@ -726,7 +726,7 @@ function contact(c,b,isT){
 }
 function hit(c,b,p,braced){
   const by=b.owner>=0?S.chars[b.owner]:null,base=[0,15,23,34,64][p]||15;
-  let dmg=base*(1-c.def-(c.hiddenDef||0))*(braced?.7:1)*(b.owner<0?.6:1)*(c.spy?(idx(c)===S.ctrl?1.35:1):1)*rnd(.9,1.1);dmg=Math.max(1,Math.round(dmg));
+  let dmg=base*(1-c.def-(c.hiddenDef||0))*(braced?.7:1)*(b.owner<0?.6:1)*(c.spy?(isHuman(idx(c))?1.35:1):1)*rnd(.9,1.1);dmg=Math.max(1,Math.round(dmg));
   c.hp-=dmg;
   ono('-'+dmg,c.x+.5,2.6,c.z,c.team==='A'?'#ff5a70':'#ffd84a',.55);
   if(c.hp<=0){c.hp=0;eliminate(c,b);return false}
@@ -745,7 +745,7 @@ function eliminate(c,b){
   if(c.hold){c.hold=false;Object.assign(S.ball,{state:'free',y:.22,vx:rnd(-1,1),vz:rnd(-1,1)})}
   S.imp=.12;sfx('hit');cam.shake=RM?4:16;
   for(let k=0;k<26;k++)emit('fire',c.x,1.2,c.z,rnd(-4,4),rnd(-1,4),rnd(-4,4),.7,rnd(.3,.7));
-  if(c.spy&&idx(c)!==S.ctrl){c.fate='FORA DO SET';ono('BAM!',c.x,2.3,c.z,'#ff5a70',1.2);S.ks=.9;S.ksFocus={x:c.x,z:c.z};think(me(),c.id==='viper'?'Viper caiu! Agora é comigo.':'Raven caiu! Eu termino esse set sozinha.',true);return}
+  if(c.spy&&!isHuman(idx(c))){c.fate='FORA DO SET';ono('BAM!',c.x,2.3,c.z,'#ff5a70',1.2);S.ks=.9;S.ksFocus={x:c.x,z:c.z};think(me(),c.id==='viper'?'Viper caiu! Agora é comigo.':'Raven caiu! Eu termino esse set sozinha.',true);return}
   if(c.spy){
     S.lives--;S.mode='death';S.deathT=0;S.deathChar=idx(c);c.fate='';
     ono('DOOM!',c.x,2.3,c.z,'#ff5a70',1.4);
@@ -828,7 +828,7 @@ function step(dt){
     if(c.jumpT>0&&c.serveT<=0){c.jumpT-=dt;const k=1-c.jumpT/.62;c.air=Math.sin(clamp(k,0,1)*Math.PI)*1.3;if(c.jumpT<=0){c.air=0;for(let q=0;q<5;q++)emit('dust',c.x,.1,c.z,rnd(-1,1),rnd(.2,.8),rnd(-1,1),.4,.35)}}
     if(c.serveT>0){stepServe(c,dt);c.mx=c.mz=0;c.avx=c.avz=0;continue}
     if(S.clash&&S.clash.ci===idx(c))continue;
-    if(c.stun>0){c.mx=c.mz=0;c.brace=false}else if(c===m&&S.mode==='play')control(c,dt);else if(c!==m)ai(c,dt);
+    if(c.stun>0){c.mx=c.mz=0;c.brace=false}else if(c===m&&S.mode==='play')control(c,dt,inp);else if(NET.role==='host'&&NET.guestOn&&idx(c)===NET.gi){if(S.mode==='play')control(c,dt,RI);else c.mx=c.mz=0}else if(c!==m)ai(c,dt);
     if(c.wall>0&&!c.hold)c.brace=true;
     let sp=c.speed*(c.boots?1.22:1),mx=c.mx,mz=c.mz;
     if(c.dashT>0){mx=c.ddx;mz=c.ddz;sp*=2.4}else if(c.jumpT>0)sp*=.75;
@@ -1154,7 +1154,7 @@ function drawTrap(world,t){
 }
 function clashUI(t){
   const K=S.clash;if(!K)return;const c=S.chars[K.ci];if(!c)return;
-  if(K.player){const bw=Math.min(260,W*.7),bx=W/2-bw/2,by=H*.66,k=clamp(K.prog,0,1);
+  if(K.player&&K.ci===S.ctrl){const bw=Math.min(260,W*.7),bx=W/2-bw/2,by=H*.66,k=clamp(K.prog,0,1);
     ctx.save();ctx.fillStyle='rgba(7,10,22,.85)';rr(bx-6,by-30,bw+12,62,10);ctx.fill();
     ctx.fillStyle='#252c52';ctx.fillRect(bx,by,bw,16);const g=ctx.createLinearGradient(bx,0,bx+bw,0);g.addColorStop(0,'#ff3b55');g.addColorStop(.5,'#ffd84a');g.addColorStop(1,'#4fe3a1');ctx.fillStyle=g;ctx.fillRect(bx,by,bw*k,16);
     ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(bx,by,bw,16);
@@ -1179,7 +1179,7 @@ function render(){
   MAIN.setTransform(DPR,0,0,DPR,0,0);MAIN.fillStyle=INK;MAIN.fillRect(0,0,W,H);DEFER=[];
   if(S.mode==='title'||!S.chars.length){layer(2,()=>titleVisual(t));return}
   let world=S;
-  if(S.mode==='rewind'&&S.rw){const n=S.rw.frames.length,k=Math.min(1,S.rw.t/S.rw.dur),i=Math.max(0,Math.min(n-1,Math.round((1-k)*(n-1))));
+  if(S.mode==='rewind'&&S.rw&&S.rw.frames&&S.rw.frames.length){const n=S.rw.frames.length,k=Math.min(1,S.rw.t/S.rw.dur),i=Math.max(0,Math.min(n-1,Math.round((1-k)*(n-1))));
     if(rwCache.i!==i){rwCache.i=i;rwCache.w=JSON.parse(S.rw.frames[i])}world=rwCache.w}
   cam.ox=cam.shake?rnd(-cam.shake,cam.shake):0;cam.oy=cam.shake?rnd(-cam.shake,cam.shake):0;
   const live=S.mode==='play',btOn=!!(S.bt&&S.mode==='play');
@@ -1256,6 +1256,7 @@ function render(){
 const cache={};const fmt=t=>Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
 function setHTML(id,v){if(cache[id]!==v){cache[id]=v;$(id).innerHTML=v}}
 function hud(){
+  $('#bSwitch').style.visibility=NET.on?'hidden':'';
   document.body.classList.toggle('noctl',!(S.mode==='play'||S.mode==='intro'||S.mode==='resume'));
   if(S.chars.length)setHTML('#tmr','SET '+(S.set||1)+' · '+fmt(S.matchT||0));
   setHTML('#lives',[0,1,2].map(i=>`<i class="${i<S.lives?'':'off'}"></i>`).join(''));
@@ -1267,15 +1268,161 @@ function hud(){
   const isR=m&&m.id==='raven',hd=m&&m.hold;setHTML('#spName',isR?(hd?'SAQUE<br>METEORO':'RAVEN<br>EYE'):(hd?'VIPER<br>STRIKE':'VIPER<br>WALL'));setHTML('#spCost',isR?'50':(hd?'60':'40'));
   const ready=isR?(hd?S.energy>=50:S.energy>=50&&S.analysis<=0):(hd?S.energy>=60:S.energy>=40&&!(m&&m.wall>0));
   $('#bSpecial').classList.toggle('ready',!!ready);$('#bSpecial').classList.toggle('off',!ready);
-  const pul=!!(S.bt&&!S.bt.res&&S.mode==='play');$('#bDodge').classList.toggle('pulse',pul&&!S.bt.low);$('#bJump').classList.toggle('pulse',pul&&!!S.bt.low);$('#bCatch').classList.toggle('pulse',(pul&&m&&!m.hold)||!!(S.clash&&S.clash.player));
+  const pul=!!(S.bt&&!S.bt.res&&S.mode==='play');$('#bDodge').classList.toggle('pulse',pul&&!S.bt.low);$('#bJump').classList.toggle('pulse',pul&&!!S.bt.low);$('#bCatch').classList.toggle('pulse',(pul&&m&&!m.hold)||!!(S.clash&&S.clash.player&&S.clash.ci===S.ctrl));
+}
+
+/* ================= ONLINE (Firebase Realtime Database) ================= */
+/* COLE AQUI A CONFIGURAÇÃO DO SEU PROJETO FIREBASE (Configurações do projeto > Seus apps > Configuração do SDK) */
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyAWU_MDG0mDt2QfKlpLIGuI5YgrLiqG8lM",
+  authDomain:"rifle-queimada.firebaseapp.com",
+  databaseURL:"https://rifle-queimada-default-rtdb.firebaseio.com",
+  projectId:"rifle-queimada",
+  storageBucket:"rifle-queimada.firebasestorage.app",
+  messagingSenderId:"764412336387",
+  appId:"1:764412336387:web:9a86c1e2118060f03a7136"
+};
+const NET={on:false,role:null,code:'',gi:1,guestOn:false,db:null,ref:null,sendT:0,inT:0,lastSt:0,lastIn:{dg:0,jp:0,sp:0,tr:0,tp:0},cnt:{dg:0,jp:0,sp:0,tr:0,tp:0},lost:false,decT:0};
+const RI={x:0,z:0,dodge:false,jump:false,special:false,throwDown:false,throwRel:false,braceDown:false,taps:0};
+const isHuman=i=>i===S.ctrl||(NET.role==='host'&&NET.guestOn&&i===NET.gi);
+function fbLoad(){
+  return new Promise((res,rej)=>{
+    if(window.firebase&&window.firebase.database)return res();
+    const add=(src,ok,bad)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=bad;document.head.appendChild(s)};
+    const V='10.12.2',A=[`https://www.gstatic.com/firebasejs/${V}/`,`https://cdn.jsdelivr.net/npm/firebase@${V}/`];
+    const tryBase=k=>{if(k>=A.length)return rej(new Error('sdk'));add(A[k]+'firebase-app-compat.js',()=>add(A[k]+'firebase-database-compat.js',res,()=>tryBase(k+1)),()=>tryBase(k+1))};
+    tryBase(0);
+  });
+}
+async function fbInit(){
+  if(!FIREBASE_CONFIG.databaseURL)throw new Error('config');
+  await fbLoad();
+  if(!firebase.apps.length)firebase.initializeApp(FIREBASE_CONFIG);
+  NET.db=firebase.database();
+}
+function netMsg(h,txt,btn){showScreen(`<div class="card"><div class="kick">Modo online</div><h2>${h}</h2><p class="lead">${txt}</p>${btn||''}<button class="go red" id="netBack" type="button">VOLTAR</button></div>`,true);$('#netBack').onclick=()=>{netLeave();titleScreen()}}
+function netErr(e){
+  if(e&&e.message==='config')netMsg('Falta configurar o Firebase','Abra o arquivo do jogo, procure <b>FIREBASE_CONFIG</b> no começo do código e cole a configuração do seu projeto Firebase.');
+  else if(e&&e.message==='sdk')netMsg('Sem internet','Não consegui carregar o Firebase. Verifique a internet e tente de novo.');
+  else netMsg('Erro de conexão','O Firebase recusou a conexão. Confira se o Realtime Database está ativado e se as regras permitem ler e escrever em <b>rifle</b>.<br><small>'+(e&&e.message||e)+'</small>');
+}
+function onlineScreen(){
+  S.mode='brief';
+  showScreen(`<div class="card">
+    <div class="kick">Modo online · dupla</div><h2>Jogar com um amigo</h2>
+    <p class="lead">Quem cria a sala joga com o <b>Raven</b>. Quem entra com o código joga com a <b>Viper</b>. Vocês enfrentam o torneio juntos e dividem as 3 vidas.</p>
+    <button class="go" id="netCreate" type="button">CRIAR SALA</button>
+    <label class="opt" for="netCode">Ou digite o código do amigo:</label>
+    <input id="netCode" maxlength="4" autocomplete="off" autocapitalize="characters" style="font:400 28px var(--display);letter-spacing:.3em;text-transform:uppercase;padding:12px 14px;border-radius:12px;border:2px solid var(--line);background:var(--ink2);color:var(--paper);width:100%;max-width:240px">
+    <button class="go" id="netJoin" type="button">ENTRAR NA SALA</button>
+    <button class="go red" id="netBack" type="button">VOLTAR</button>
+  </div>`,true);
+  $('#netBack').onclick=()=>titleScreen();
+  $('#netCreate').onclick=()=>{initAudio();netCreate()};
+  $('#netJoin').onclick=()=>{initAudio();netJoin(($('#netCode').value||'').trim().toUpperCase())};
+}
+async function netCreate(){
+  netMsg('Criando sala...','Conectando ao Firebase.');
+  try{await fbInit()}catch(e){return netErr(e)}
+  const L='ABCDEFGHJKLMNPQRSTUVWXYZ';let code='';for(let i=0;i<4;i++)code+=L[Math.floor(Math.random()*L.length)];
+  NET.code=code;NET.role='host';NET.on=true;NET.ref=NET.db.ref('rifle/'+code);
+  try{await NET.ref.set({h:Date.now()});}catch(e){NET.on=false;return netErr(e)}
+  NET.ref.onDisconnect().remove();
+  NET.ref.child('g').on('value',sn=>{const v=sn.val();const was=NET.guestOn;NET.guestOn=!!v;
+    if(NET.guestOn&&!was){if(S.mode==='brief'&&$('#netWait'))hostReady();else if(S.chars.length)think('viper','Voltei! Deixa comigo.',true)}
+    if(!NET.guestOn&&was&&S.chars.length)think('raven','A Viper perdeu a conexão. Ela vai no automático até voltar.',true)});
+  NET.ref.child('in').on('value',sn=>{const v=sn.val();if(!v)return;applyRemoteInput(v)});
+  showScreen(`<div class="card" id="netWait"><div class="kick">Sala criada</div><h2>Mande este código</h2>
+    <div style="font:400 64px var(--display);letter-spacing:.25em;color:var(--fire);text-shadow:0 0 24px rgba(79,182,255,.5)">${code}</div>
+    <p class="lead">Seu amigo abre o jogo, toca em <b>JOGAR ONLINE</b> e digita esse código. Aguardando ele entrar...</p>
+    <button class="go red" id="netBack" type="button">CANCELAR</button></div>`,true);
+  $('#netBack').onclick=()=>{netLeave();titleScreen()};
+}
+function hostReady(){
+  showScreen(`<div class="card"><div class="kick">Sala ${NET.code}</div><h2>Amigo conectado!</h2>
+    <p class="lead">Você é o <b>Raven</b>. Seu amigo é a <b>Viper</b>. Você escolhe as partidas e os itens da loja.</p>
+    <label class="opt"><input type="checkbox" id="optVoice" checked> Vozes dos personagens</label>
+    <button class="go" id="goStart" type="button">COMEÇAR O TORNEIO</button></div>`,true);
+  $('#goStart').onclick=()=>{S.voice=$('#optVoice').checked;newTournament();briefScreen(0)};
+}
+async function netJoin(code){
+  if(!/^[A-Z]{4}$/.test(code)){netMsg('Código inválido','O código tem 4 letras. Confira com o seu amigo.');return}
+  netMsg('Entrando...','Conectando ao Firebase.');
+  try{await fbInit()}catch(e){return netErr(e)}
+  const ref=NET.db.ref('rifle/'+code);
+  let snap;try{snap=await ref.once('value')}catch(e){return netErr(e)}
+  if(!snap.exists()){netMsg('Sala não encontrada','Não existe sala com o código <b>'+code+'</b>. Peça para seu amigo criar a sala de novo.');return}
+  NET.code=code;NET.role='guest';NET.on=true;NET.ref=ref;NET.lost=false;S.ctrl=NET.gi;
+  await ref.child('g').set(Date.now());ref.child('g').onDisconnect().remove();
+  NET.lastSt=performance.now();
+  ref.child('st').on('value',sn=>{const v=sn.val();if(!v)return;NET.lastSt=performance.now();try{guestApply(JSON.parse(v))}catch(e){console.error(e)}});
+  ref.on('value',sn=>{if(!sn.exists()&&NET.on&&NET.role==='guest')guestLost()});
+  S.mode='brief';guestWait('Conectado à sala '+code,'Você é a <b>Viper</b>. Aguarde o Raven começar o torneio.');
+}
+function guestWait(h,txt){showScreen(`<div class="card"><div class="kick">Modo online</div><h2>${h}</h2><p class="lead">${txt}</p><button class="go red" id="netBack" type="button">SAIR DA SALA</button></div>`,true);$('#netBack').onclick=()=>{netLeave();titleScreen()};NET.waitShown=true}
+function guestLost(){if(NET.lost)return;NET.lost=true;netLeave();S.chars=[];netMsg('Conexão perdida','O Raven saiu da sala ou a internet caiu. Crie ou entre em uma sala de novo.')}
+function netLeave(){
+  try{if(NET.ref){NET.ref.off();NET.ref.child('g').off();NET.ref.child('in').off();NET.ref.child('st').off();if(NET.role==='host')NET.ref.remove();else NET.ref.child('g').remove()}}catch(e){}
+  Object.assign(NET,{on:false,role:null,guestOn:false,ref:null});S.ctrl=0;
+}
+function applyRemoteInput(v){
+  const L=NET.lastIn;RI.x=v.x||0;RI.z=v.z||0;RI.throwDown=!!v.td;RI.braceDown=!!v.bd;
+  if(v.dg>L.dg)RI.dodge=true;if(v.jp>L.jp)RI.jump=true;if(v.sp>L.sp)RI.special=true;if(v.tr>L.tr){RI.throwRel=true;RI.throwDown=false}if(v.tp>L.tp)RI.taps+=v.tp-L.tp;
+  NET.lastIn={dg:v.dg||0,jp:v.jp||0,sp:v.sp||0,tr:v.tr||0,tp:v.tp||0};
+}
+const R2=(k,v)=>typeof v==='number'?Math.round(v*100)/100:v;
+function hostSend(dt){
+  if(NET.role!=='host'||!NET.guestOn||!NET.ref)return;
+  NET.sendT-=dt;if(NET.sendT>0)return;NET.sendT=.08;
+  const w=(S.mode==='rewind'&&rwCache.w)?rwCache.w:S;
+  const strip=c=>{const o=Object.assign({},c);delete o.look;delete o.ai;delete o.ghosts;return o};
+  const st={m:S.mode,c:(w.chars||[]).map(strip),b:w.ball,tb:w.tball,xb:w.xb||[],tr:w.trap,tu:w.turret,th:S.thought,sh:S.shoutB,on:S.onos,
+    e:S.energy,l:S.lives,mt:S.match,st:S.set,mT:S.matchT,cut:S.cut?{who:S.cut.who,move:S.cut.move,sub:S.cut.sub,t:S.cut.t,dur:S.cut.dur}:null,
+    bt:S.bt,esc:S.esc,ks:S.ks,ksF:S.ksFocus,escF:S.escFocus,imp:S.imp,ban:S.banner,an:S.analysis,cl:S.clash,dT:S.deathT,dC:S.deathChar,
+    rw:S.rw?{t:S.rw.t,dur:S.rw.dur,secs:S.rw.secs}:null,rs:S.resumeT,vs:S.vsT,it:S.introT,bn:S.banT,sc:S.scrTitle||'',ti:S.time};
+  NET.decT-=.08;if(NET.decT<=0){NET.decT=1;st.d=S.decals}
+  try{NET.ref.child('st').set(JSON.stringify(st,R2))}catch(e){}
+}
+function guestSend(dt){
+  if(NET.role!=='guest'||!NET.ref)return;
+  if(inp.dodge){inp.dodge=false;NET.cnt.dg++}if(inp.jump){inp.jump=false;NET.cnt.jp++}if(inp.special){inp.special=false;NET.cnt.sp++}
+  if(inp.throwRel){inp.throwRel=false;NET.cnt.tr++}if(inp.taps){NET.cnt.tp+=inp.taps;inp.taps=0}inp.sw=false;
+  NET.inT-=dt;const d=inputDir();const key=[d.x.toFixed(2),d.z.toFixed(2),inp.throwDown,inp.braceDown,NET.cnt.dg,NET.cnt.jp,NET.cnt.sp,NET.cnt.tr,NET.cnt.tp].join();
+  if(key===NET.lastKey&&NET.inT>0)return;NET.lastKey=key;NET.inT=.25;
+  try{NET.ref.child('in').set({x:+d.x.toFixed(2),z:+d.z.toFixed(2),td:inp.throwDown?1:0,bd:inp.braceDown?1:0,...NET.cnt})}catch(e){}
+}
+function guestApply(st){
+  if(st.cut&&!S.cut)sfx('cut');
+  for(const o of (st.on||[])){if(o.t<.12){const k=o.text+'|'+Math.round(o.x*10)+'|'+Math.round(o.z*10);if(NET.seen&&NET.seen.has(k))continue;(NET.seen=NET.seen||new Set()).add(k);if(NET.seen.size>60)NET.seen=new Set([k]);
+    const T=o.text;sfx(/WHAM|BAM|KRAK|DOOM|BOOM|ECLIPSE|KRASH/.test(T)?'hit':/SNAP|PEGOU|SEGUROU|CONTRA/.test(T)?'catch':/SWISH|PULO|HUP/.test(T)?'esc':/CRACK|BLOCK/.test(T)?'guard':'throw')}}
+  S.mode=st.m;S.energy=st.e;S.lives=st.l;S.match=st.mt;S.set=st.st;S.matchT=st.mT;S.cut=st.cut;S.bt=st.bt;S.esc=st.esc;S.ks=st.ks;S.ksFocus=st.ksF;S.escFocus=st.escF;
+  S.imp=st.imp;S.banner=st.ban;S.analysis=st.an;S.clash=st.cl;S.deathT=st.dT;S.deathChar=st.dC;S.rw=st.rw?Object.assign({frames:[]},st.rw):null;S.resumeT=st.rs;S.vsT=st.vs;S.introT=st.it;S.banT=st.bn;S.time=st.ti;
+  S.thought=st.th||{};S.shoutB=st.sh||{};S.onos=st.on||[];S.xb=st.xb||[];S.trap=st.tr;S.turret=st.tu;S.tball=st.tb;if(st.d)S.decals=st.d;
+  const nc=st.c||[];
+  if(S.chars.length!==nc.length||nc.some((c,i)=>!S.chars[i]||S.chars[i].id!==c.id)){S.chars=nc.map(c=>Object.assign(c,{look:LOOKS[c.id],ghosts:[],ai:{},_tx:c.x,_tz:c.z}))}
+  else nc.forEach((c,i)=>{const o=S.chars[i];const tx=c.x,tz=c.z;Object.assign(o,c);o._tx=tx;o._tz=tz;if(o._px==null||isNaN(o._px)||Math.hypot(o._px-tx,o._pz-tz)>2.5){o._px=tx;o._pz=tz}o.x=o._px;o.z=o._pz});
+  if(st.b){const ob=S.ball;const nb=st.b;if(ob&&ob.state===nb.state&&Math.hypot(ob.x-nb.x,ob.z-nb.z)<3){const px=ob.x,py=ob.y,pz=ob.z;S.ball=nb;nb._tx=nb.x;nb._ty=nb.y;nb._tz=nb.z;nb.x=px;nb.y=py;nb.z=pz}else{S.ball=nb;nb._tx=nb.x;nb._ty=nb.y;nb._tz=nb.z}}
+  if(st.mt!=null){$('#mN').textContent=MATCHES[st.mt].n;$('#mT').textContent=MATCHES[st.mt].t}
+  S.ctrl=NET.gi;
+  if(S.mode==='brief'||S.mode==='title'){if(!NET.waitShown||NET.waitTitle!==st.sc){NET.waitTitle=st.sc;guestWait(st.sc||'Aguardando','O Raven está escolhendo o próximo passo. Aguarde...')}}
+  else if(!scr.hidden){scr.hidden=true;NET.waitShown=false}
+}
+function guestTick(dt){
+  guestSend(dt);
+  if(performance.now()-NET.lastSt>6000&&S.chars.length)guestLost();
+  const k=Math.min(1,dt*14);
+  for(const c of S.chars){if(c._tx==null)continue;if(c._px==null||isNaN(c._px)){c._px=c._tx;c._pz=c._tz}c._px+=(c._tx-c._px)*k;c._pz+=(c._tz-c._pz)*k;c.x=c._px;c.z=c._pz;
+    if(c.dashT>0){c.ghosts.push([c.x,c.z,c.flip||0]);if(c.ghosts.length>6)c.ghosts.shift()}else if(c.ghosts.length)c.ghosts.shift()}
+  const b=S.ball;if(b&&b._tx!=null){b.x+=(b._tx-b.x)*k;b.y+=(b._ty-b.y)*k;b.z+=(b._tz-b.z)*k;if(b.state==='fly'&&Math.random()<.9)emit('fire',b.x,b.y,b.z,rnd(-.6,.6),rnd(.2,1.2),rnd(-.6,.6),rnd(.25,.45),rnd(.22,.38))}
+  for(const x of S.xb){if(Math.random()<.6)emit(x.red?'rfire':'fire',x.x,x.y,x.z,rnd(-.5,.5),rnd(.2,1),rnd(-.5,.5),.3,.25)}
 }
 
 /* ================= screens ================= */
 const scr=$('#screen');
 function hideScreen(){scr.hidden=true}
-function showScreen(html,solid){scr.innerHTML=html;scr.classList.toggle('solid',!!solid);scr.hidden=false;scr.scrollTop=0}
+function showScreen(html,solid){const mt=html.match(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/);S.scrTitle=mt?mt[1].replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim():'';scr.innerHTML=html;scr.classList.toggle('solid',!!solid);scr.hidden=false;scr.scrollTop=0}
 function titleScreen(){
-  S.mode='title';S.chars=[];
+  if(NET.on)netLeave();S.mode='title';S.chars=[];
   showScreen(`<div class="card">
     <div class="kick">Torneio clandestino · duplas · queimada letal</div>
     <h1>RIFLE<em>QUEIMADA</em></h1>
@@ -1286,10 +1433,12 @@ function titleScreen(){
     </div>
     <p class="lead" style="font-size:14px">Cada partida tem <b>2 sets</b> e cada personagem tem uma <b>barra de vida</b>. Você tem <b>3 vidas</b>. Se for atingido, o tempo volta <b>15 segundos</b>. Sem vidas, o torneio recomeça.</p>
     <label class="opt"><input type="checkbox" id="optVoice" checked> Vozes dos personagens (voz do aparelho)</label>
-    <button class="go" id="goStart" type="button">ENTRAR NO TORNEIO</button>
+    <button class="go" id="goStart" type="button">JOGAR SOZINHO</button>
+    <button class="go" id="goOnline" type="button" style="background:linear-gradient(180deg,#ff5a70,#c81d3a);box-shadow:0 6px 0 #7a1022">JOGAR ONLINE</button>
     <p class="keys">Teclado: WASD move · Espaço (segure) arremessa · C (segure) agarra · Shift esquiva · X pula · Q troca · E especial. Puxe o joystick para trás ao arremessar para fazer uma rasteira.</p>
   </div>`);
   $('#goStart').onclick=()=>{initAudio();S.voice=$('#optVoice').checked;newTournament();briefScreen(0)};
+  $('#goOnline').onclick=()=>{initAudio();S.voice=$('#optVoice').checked;onlineScreen()};
 }
 function briefScreen(i){
   const M=MATCHES[i];S.mode='brief';
@@ -1338,10 +1487,12 @@ function finalScreen(){
 
 /* ================= loop ================= */
 let last=performance.now();
-function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;try{update(dt);render();hud()}catch(e){console.error(e)}requestAnimationFrame(frame)}
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;try{update(dt);hostSend(dt);render();hud()}catch(e){console.error(e)}requestAnimationFrame(frame)}
 function update(dt){
   let ts=1;
-  if(S.mode==='play'){
+  if(NET.role==='guest'){if(S.chars.length)guestTick(dt);else guestSend(dt)}
+  else if(S.mode==='play'){
+    if(inp.sw&&NET.on)inp.sw=false;
     if(inp.sw){inp.sw=false;const o=S.chars.findIndex(c=>c.spy&&c!==me()&&c.alive);if(o>=0&&!S.bt){me().charge=0;me().brace=false;S.ctrl=o;const c=me();c.mx=c.mz=0;shout(c,pick(['Deixa comigo!','Minha vez!']))}}
     if(S.cut){S.cut.t+=dt;ts=0;if(S.cut.t>=S.cut.dur){const f=S.cut.after;S.cut=null;if(f)f()}}
     else{
@@ -1372,7 +1523,7 @@ function update(dt){
   else if(S.mode==='vs'){S.vsT-=dt;if(S.vsT<=0){S.mode='intro';S.introT=2.6;sfx('go')}}
   else if(S.mode==='intro'){S.introT-=dt;if(S.introT<=0){S.mode='play';sfx('go');S.hist.push(snapshot())}}
   if(!S.clash)inp.taps=0;
-  if(S.mode!=='play'){inp.throwRel=false;inp.dodge=false;inp.jump=false;inp.special=false;inp.sw=false}
+  if(S.mode!=='play'){RI.dodge=RI.jump=RI.special=RI.throwRel=false;RI.taps=0;inp.throwRel=false;inp.dodge=false;inp.jump=false;inp.special=false;inp.sw=false}
   if(S.imp>0)S.imp-=dt;
   if(S.banner>0)S.banner-=dt;
   let tx=0,tz=1,troll=0,fx=CX,fy=HY+F*1.1;const m=me();
