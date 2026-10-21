@@ -839,6 +839,7 @@ function step(dt){
     let sx=0,sz=0;if(c.slideT>0){c.slideT-=dt;sx=c.slx*dt;sz=c.slz*dt;const dk=Math.pow(.03,dt);c.slx*=dk;c.slz*=dk;if(Math.random()<.7)emit('dust',c.x,.1,c.z,rnd(-1,1)-c.slx*.2,rnd(.4,1.2),rnd(-1,1)-c.slz*.2,.5,rnd(.3,.5));const dd=S.decals[c.skidI];if(c.skidI>=0&&dd){dd.x2=c.x;dd.z2=c.z}}
     const[lo,hi]=bounds(c),nx=clamp(c.x+mx*sp*dt+sx,-HALF,HALF),nz=clamp(c.z+mz*sp*dt+sz,lo,hi);
     c.avx=(nx-c.x)/dt;c.avz=(nz-c.z)/dt;c.x=nx;c.z=nz;c.mv=ml>.15;c.an+=dt*sp*2.4*Math.min(1,ml);if(Math.abs(mx)>.1)c.face=Math.sign(mx);
+    if(NET.role==='host'&&NET.guestOn&&idx(c)===NET.gi)hostFollowGuest(c,dt);
     c.hs+=((-c.avx*.06)-c.hs)*Math.min(1,dt*6);
     if(c.charge>.4&&Math.random()<c.charge)emit('fire',c.x+rnd(-.4,.4),rnd(.2,1.8),c.z,0,rnd(1,2.5),0,.4,rnd(.2,.35));
     if(c.hold&&c.holdT>10){c.hold=false;c.charge=0;c.wind=0;Object.assign(S.ball,{state:'free',x:0,y:.22,z:c.team==='A'?MID+2:MID-2,vx:0,vz:0});sfx('whistle');speak(c,'Tempo! A bola passa pro outro lado.','say')}
@@ -1367,29 +1368,71 @@ function netLeave(){
 }
 function applyRemoteInput(v){
   const L=NET.lastIn;RI.x=v.x||0;RI.z=v.z||0;RI.throwDown=!!v.td;RI.braceDown=!!v.bd;
+  if(v.px!=null){RI.px=v.px;RI.pz=v.pz;RI.vx=v.vx||0;RI.vz=v.vz||0;RI.pt=performance.now()}
   if(v.dg>L.dg)RI.dodge=true;if(v.jp>L.jp)RI.jump=true;if(v.sp>L.sp)RI.special=true;if(v.tr>L.tr){RI.throwRel=true;RI.throwDown=false}if(v.tp>L.tp)RI.taps+=v.tp-L.tp;
   NET.lastIn={dg:v.dg||0,jp:v.jp||0,sp:v.sp||0,tr:v.tr||0,tp:v.tp||0};
 }
+/* host trusts the guest for its own position (no input round-trip) */
+function hostFollowGuest(c,dt){
+  if(RI.px==null||S.mode!=='play')return;
+  if(c.slideT>0||c.stun>0||c.serveT>0||(S.clash&&S.clash.ci===idx(c)))return;
+  const age=Math.min(.2,(performance.now()-RI.pt)/1000),[lo,hi]=bounds(c);
+  const tx=clamp(RI.px+RI.vx*age,-HALF,HALF),tz=clamp(RI.pz+RI.vz*age,lo,hi);
+  if(Math.hypot(tx-c.x,tz-c.z)>3){c.x=tx;c.z=tz;return}
+  const k=Math.min(1,dt*20),ox=c.x,oz=c.z;c.x+=(tx-c.x)*k;c.z+=(tz-c.z)*k;
+  c.avx=(c.x-ox)/dt;c.avz=(c.z-oz)/dt;c.mv=Math.hypot(c.avx,c.avz)>.6;if(c.mv)c.an+=dt*c.speed*2.4;if(Math.abs(c.avx)>.3)c.face=Math.sign(c.avx);
+}
 const R2=(k,v)=>typeof v==='number'?Math.round(v*100)/100:v;
+const CK=['id','name','team','spy','civ','boss','rich','x','z','avx','avz','air','alive','deadT','hold','holdT','charge','brace','braceT','wind','windPow','windTarget','stun','dashT','ddx','ddz','flip','flipOn','jumpT','throwAnim','an','mv','hs','face','hp','hpMax','known','fate','wall','serveT','serveReady','knx','glove','speed','boots','slideT','counterT'];
+const BK=['state','x','y','z','vx','vy','vz','owner','team','power','spin','spinPh','zig','eclipse','big','ex','ez','harmless','low','red'];
+const pickK=(o,K)=>{if(!o)return o;const r={};for(const k of K)if(o[k]!==undefined)r[k]=o[k];return r};
 function hostSend(dt){
   if(NET.role!=='host'||!NET.guestOn||!NET.ref)return;
-  NET.sendT-=dt;if(NET.sendT>0)return;NET.sendT=.08;
+  NET.sendT-=dt;if(NET.sendT>0||NET.busy)return;NET.sendT=.066;
   const w=(S.mode==='rewind'&&rwCache.w)?rwCache.w:S;
-  const strip=c=>{const o=Object.assign({},c);delete o.look;delete o.ai;delete o.ghosts;return o};
-  const st={m:S.mode,c:(w.chars||[]).map(strip),b:w.ball,tb:w.tball,xb:w.xb||[],tr:w.trap,tu:w.turret,th:S.thought,sh:S.shoutB,on:S.onos,
+  const st={m:S.mode,c:(w.chars||[]).map(c=>{const o=pickK(c,CK);o.nf=(c.slideT>0||c.stun>0||c.serveT>0||(S.clash&&S.clash.ci===S.chars.indexOf(c)))?1:0;return o}),
+    b:pickK(w.ball,BK),tb:pickK(w.tball,BK),xb:(w.xb||[]).map(x=>pickK(x,BK)),tr:w.trap,tu:w.turret,th:S.thought,sh:S.shoutB,on:S.onos,
     e:S.energy,l:S.lives,mt:S.match,st:S.set,mT:S.matchT,cut:S.cut?{who:S.cut.who,move:S.cut.move,sub:S.cut.sub,t:S.cut.t,dur:S.cut.dur}:null,
     bt:S.bt,esc:S.esc,ks:S.ks,ksF:S.ksFocus,escF:S.escFocus,imp:S.imp,ban:S.banner,an:S.analysis,cl:S.clash,dT:S.deathT,dC:S.deathChar,
     rw:S.rw?{t:S.rw.t,dur:S.rw.dur,secs:S.rw.secs}:null,rs:S.resumeT,vs:S.vsT,it:S.introT,bn:S.banT,sc:S.scrTitle||'',ti:S.time};
-  NET.decT-=.08;if(NET.decT<=0){NET.decT=1;st.d=S.decals}
-  try{NET.ref.child('st').set(JSON.stringify(st,R2))}catch(e){}
+  NET.decT-=.066;if(NET.decT<=0){NET.decT=1;st.d=S.decals}
+  NET.busy=true;const done=()=>{NET.busy=false};
+  try{NET.ref.child('st').set(JSON.stringify(st,R2)).then(done,done);setTimeout(done,600)}catch(e){NET.busy=false}
+}
+/* guest: predict own character locally so it reacts instantly */
+function guestPredict(dt){
+  const c=S.chars[S.ctrl];if(!c||!c.alive)return;
+  const follow=S.mode!=='play'||c.nf;
+  if(follow){c.lDash=0;c.lJump=0;return}
+  const d=inputDir();
+  c.lCD=(c.lCD||0)-dt;
+  if(inp.dodge&&c.lCD<=0&&c.stun<=0){let dx=d.x,dz=d.z,l=Math.hypot(dx,dz);if(l<.2){dx=c.x>0?-1:1;dz=0;l=1}c.lDash=.26;c.lCD=.75;c.ldx=dx/l;c.ldz=dz/l;sfx('dash')}
+  if(inp.jump&&!(c.lJump>0)){c.lJump=.62;sfx('dash')}
+  let sp=(c.speed||5)*(c.boots?1.22:1),vx=d.x*sp,vz=d.z*sp;
+  if(c.lDash>0){c.lDash-=dt;vx=c.ldx*sp*2.4;vz=c.ldz*sp*2.4;c.dashT=c.lDash;c.ddx=c.ldx;c.ghosts.push([c.x,c.z,0]);if(c.ghosts.length>6)c.ghosts.shift()}
+  else{if(c.ghosts.length)c.ghosts.shift();if(inp.throwDown&&c.hold)vx*=.6,vz*=.6;else if(inp.braceDown&&!c.hold)vx*=.42,vz*=.42}
+  if(c.lJump>0){c.lJump-=dt;c.air=Math.sin(Math.min(1,Math.max(0,1-c.lJump/.62))*Math.PI)*1.3;c.jumpT=Math.max(0,c.lJump);if(c.lJump<=0){c.air=0;c.jumpT=0}vx*=.75;vz*=.75}
+  const[lo,hi]=bounds(c);const nx=clamp(c.x+vx*dt,-HALF,HALF),nz=clamp(c.z+vz*dt,lo,hi);
+  c.avx=(nx-c.x)/dt;c.avz=(nz-c.z)/dt;c.x=nx;c.z=nz;c.mv=Math.hypot(vx,vz)>.6;if(c.mv)c.an+=dt*sp*2.4*Math.min(1,Math.hypot(d.x,d.z));if(Math.abs(d.x)>.1)c.face=Math.sign(d.x);
+  c.brace=inp.braceDown&&!c.hold;
+  if(c.hold&&inp.throwDown)c.lCharge=Math.min(1.5,(c.lCharge||0)+dt);else if(!inp.throwDown)c.lCharge=0;
+  if(c.hold)c.charge=c.lCharge||0;
+  c._px=c.x;c._pz=c.z;c.pred=true;
 }
 function guestSend(dt){
   if(NET.role!=='guest'||!NET.ref)return;
   if(inp.dodge){inp.dodge=false;NET.cnt.dg++}if(inp.jump){inp.jump=false;NET.cnt.jp++}if(inp.special){inp.special=false;NET.cnt.sp++}
   if(inp.throwRel){inp.throwRel=false;NET.cnt.tr++}if(inp.taps){NET.cnt.tp+=inp.taps;inp.taps=0}inp.sw=false;
-  NET.inT-=dt;const d=inputDir();const key=[d.x.toFixed(2),d.z.toFixed(2),inp.throwDown,inp.braceDown,NET.cnt.dg,NET.cnt.jp,NET.cnt.sp,NET.cnt.tr,NET.cnt.tp].join();
-  if(key===NET.lastKey&&NET.inT>0)return;NET.lastKey=key;NET.inT=.25;
-  try{NET.ref.child('in').set({x:+d.x.toFixed(2),z:+d.z.toFixed(2),td:inp.throwDown?1:0,bd:inp.braceDown?1:0,...NET.cnt})}catch(e){}
+  NET.inT-=dt;const d=inputDir(),c=S.chars[S.ctrl];
+  const ev=[inp.throwDown,inp.braceDown,NET.cnt.dg,NET.cnt.jp,NET.cnt.sp,NET.cnt.tr,NET.cnt.tp].join();
+  const evChanged=ev!==NET.lastEv;
+  if(NET.busyIn&&!evChanged)return;
+  if(!evChanged&&NET.inT>0)return;
+  NET.lastEv=ev;NET.inT=.05;
+  const o={x:+d.x.toFixed(2),z:+d.z.toFixed(2),td:inp.throwDown?1:0,bd:inp.braceDown?1:0,...NET.cnt};
+  if(c&&c.pred&&S.mode==='play'&&!c.nf){o.px=+c.x.toFixed(2);o.pz=+c.z.toFixed(2);o.vx=+(c.avx||0).toFixed(2);o.vz=+(c.avz||0).toFixed(2)}
+  NET.busyIn=true;const done=()=>{NET.busyIn=false};
+  try{NET.ref.child('in').set(o).then(done,done);setTimeout(done,400)}catch(e){NET.busyIn=false}
 }
 function guestApply(st){
   if(st.cut&&!S.cut)sfx('cut');
@@ -1397,24 +1440,36 @@ function guestApply(st){
     const T=o.text;sfx(/WHAM|BAM|KRAK|DOOM|BOOM|ECLIPSE|KRASH/.test(T)?'hit':/SNAP|PEGOU|SEGUROU|CONTRA/.test(T)?'catch':/SWISH|PULO|HUP/.test(T)?'esc':/CRACK|BLOCK/.test(T)?'guard':'throw')}}
   S.mode=st.m;S.energy=st.e;S.lives=st.l;S.match=st.mt;S.set=st.st;S.matchT=st.mT;S.cut=st.cut;S.bt=st.bt;S.esc=st.esc;S.ks=st.ks;S.ksFocus=st.ksF;S.escFocus=st.escF;
   S.imp=st.imp;S.banner=st.ban;S.analysis=st.an;S.clash=st.cl;S.deathT=st.dT;S.deathChar=st.dC;S.rw=st.rw?Object.assign({frames:[]},st.rw):null;S.resumeT=st.rs;S.vsT=st.vs;S.introT=st.it;S.banT=st.bn;S.time=st.ti;
-  S.thought=st.th||{};S.shoutB=st.sh||{};S.onos=st.on||[];S.xb=st.xb||[];S.trap=st.tr;S.turret=st.tu;S.tball=st.tb;if(st.d)S.decals=st.d;
+  S.thought=st.th||{};S.shoutB=st.sh||{};S.onos=st.on||[];S.trap=st.tr;S.turret=st.tu;if(st.d)S.decals=st.d;
+  const now=performance.now();NET.rt=now;
+  const keepTrail=(nb,ob)=>{nb.trail=(ob&&ob.trail&&ob.state==='fly'&&nb.state==='fly')?ob.trail:[];nb.hits=[];nb.rolled=[];return nb};
+  S.xb=(st.xb||[]).map((x,i)=>keepTrail(x,S.xb[i]));S.tball=st.tb?keepTrail(st.tb,S.tball):null;
   const nc=st.c||[];
-  if(S.chars.length!==nc.length||nc.some((c,i)=>!S.chars[i]||S.chars[i].id!==c.id)){S.chars=nc.map(c=>Object.assign(c,{look:LOOKS[c.id],ghosts:[],ai:{},_tx:c.x,_tz:c.z}))}
-  else nc.forEach((c,i)=>{const o=S.chars[i];const tx=c.x,tz=c.z;Object.assign(o,c);o._tx=tx;o._tz=tz;if(o._px==null||isNaN(o._px)||Math.hypot(o._px-tx,o._pz-tz)>2.5){o._px=tx;o._pz=tz}o.x=o._px;o.z=o._pz});
-  if(st.b){const ob=S.ball;const nb=st.b;if(ob&&ob.state===nb.state&&Math.hypot(ob.x-nb.x,ob.z-nb.z)<3){const px=ob.x,py=ob.y,pz=ob.z;S.ball=nb;nb._tx=nb.x;nb._ty=nb.y;nb._tz=nb.z;nb.x=px;nb.y=py;nb.z=pz}else{S.ball=nb;nb._tx=nb.x;nb._ty=nb.y;nb._tz=nb.z}}
+  if(S.chars.length!==nc.length||nc.some((c,i)=>!S.chars[i]||S.chars[i].id!==c.id)){S.chars=nc.map(c=>Object.assign(c,{look:LOOKS[c.id],ghosts:[],ai:{},_tx:c.x,_tz:c.z,_px:c.x,_pz:c.z}))}
+  else nc.forEach((c,i)=>{const o=S.chars[i],mine=i===S.ctrl;
+    if(mine&&o.pred&&S.mode==='play'&&!c.nf){const lx=o.x,lz=o.z,la=o.air,lj=o.jumpT,ld=o.dashT,ldx=o.ddx,lb=o.brace,lc=o.charge,lav=o.avx,lavz=o.avz,lmv=o.mv,lan=o.an,lf=o.face;
+      Object.assign(o,c);if(Math.hypot(lx-c.x,lz-c.z)<3){o.x=lx;o.z=lz}o.air=la;o.jumpT=lj;o.dashT=ld;o.ddx=ldx;o.brace=lb;if(o.hold)o.charge=lc;o.avx=lav;o.avz=lavz;o.mv=lmv;o.an=lan;o.face=lf;o._px=o.x;o._pz=o.z;return}
+    Object.assign(o,c);o._tx=c.x;o._tz=c.z;o._vx=c.avx||0;o._vz=c.avz||0;if(o._px==null||isNaN(o._px)||Math.hypot(o._px-c.x,o._pz-c.z)>2.5){o._px=c.x;o._pz=c.z}o.x=o._px;o.z=o._pz;if(mine)o.pred=false});
+  if(st.b){const ob=S.ball,nb=keepTrail(st.b,ob);nb._tx=nb.x;nb._ty=nb.y;nb._tz=nb.z;if(ob&&ob.state===nb.state&&Math.hypot(ob.x-nb.x,ob.z-nb.z)<3){nb.x=ob.x;nb.y=ob.y;nb.z=ob.z}S.ball=nb}
   if(st.mt!=null){$('#mN').textContent=MATCHES[st.mt].n;$('#mT').textContent=MATCHES[st.mt].t}
   S.ctrl=NET.gi;
   if(S.mode==='brief'||S.mode==='title'){if(!NET.waitShown||NET.waitTitle!==st.sc){NET.waitTitle=st.sc;guestWait(st.sc||'Aguardando','O Raven está escolhendo o próximo passo. Aguarde...')}}
   else if(!scr.hidden){scr.hidden=true;NET.waitShown=false}
 }
 function guestTick(dt){
+  guestPredict(dt);
   guestSend(dt);
   if(performance.now()-NET.lastSt>6000&&S.chars.length)guestLost();
-  const k=Math.min(1,dt*14);
-  for(const c of S.chars){if(c._tx==null)continue;if(c._px==null||isNaN(c._px)){c._px=c._tx;c._pz=c._tz}c._px+=(c._tx-c._px)*k;c._pz+=(c._tz-c._pz)*k;c.x=c._px;c.z=c._pz;
-    if(c.dashT>0){c.ghosts.push([c.x,c.z,c.flip||0]);if(c.ghosts.length>6)c.ghosts.shift()}else if(c.ghosts.length)c.ghosts.shift()}
-  const b=S.ball;if(b&&b._tx!=null){b.x+=(b._tx-b.x)*k;b.y+=(b._ty-b.y)*k;b.z+=(b._tz-b.z)*k;if(b.state==='fly'&&Math.random()<.9)emit('fire',b.x,b.y,b.z,rnd(-.6,.6),rnd(.2,1.2),rnd(-.6,.6),rnd(.25,.45),rnd(.22,.38))}
-  for(const x of S.xb){if(Math.random()<.6)emit(x.red?'rfire':'fire',x.x,x.y,x.z,rnd(-.5,.5),rnd(.2,1),rnd(-.5,.5),.3,.25)}
+  const age=Math.min(.15,(performance.now()-(NET.rt||0))/1000),k=Math.min(1,dt*18);
+  S.chars.forEach((c,i)=>{if(c._tx==null)return;if(i===S.ctrl&&c.pred)return;
+    const tx=c._tx+(c.alive?(c._vx||0)*age:0),tz=c._tz+(c.alive?(c._vz||0)*age:0);
+    if(c._px==null||isNaN(c._px)){c._px=tx;c._pz=tz}c._px+=(tx-c._px)*k;c._pz+=(tz-c._pz)*k;c.x=c._px;c.z=c._pz;
+    if(c.dashT>0){c.ghosts.push([c.x,c.z,c.flip||0]);if(c.ghosts.length>6)c.ghosts.shift()}else if(c.ghosts.length)c.ghosts.shift()});
+  const b=S.ball;
+  if(b&&b._tx!=null){let tx=b._tx,ty=b._ty,tz=b._tz;if(b.state==='fly'){tx+=(b.vx||0)*age;ty+=(b.vy||0)*age-.5*G*age*age;tz+=(b.vz||0)*age}
+    const kb=b.state==='fly'?Math.min(1,dt*30):k;b.x+=(tx-b.x)*kb;b.y+=(ty-b.y)*kb;b.z+=(tz-b.z)*kb;
+    if(b.state==='fly'){b.trail.push([b.x,b.y,b.z]);if(b.trail.length>14)b.trail.shift();if(Math.random()<.9)emit('fire',b.x,b.y,b.z,rnd(-.6,.6),rnd(.2,1.2),rnd(-.6,.6),rnd(.25,.45),rnd(.22,.38))}else b.trail.length=0}
+  for(const x of S.xb){x.trail.push([x.x,x.y,x.z]);if(x.trail.length>10)x.trail.shift();if(Math.random()<.6)emit(x.red?'rfire':'fire',x.x,x.y,x.z,rnd(-.5,.5),rnd(.2,1),rnd(-.5,.5),.3,.25)}
 }
 
 /* ================= screens ================= */
